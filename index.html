@@ -31,6 +31,10 @@
           console.log('Connected to signaling server');
         });
 
+        socket.on('onlineUsers', (count) => {
+          setOnlineUsers(count);
+        });
+
         socket.on('matched', (data) => {
           const newPeer = new SimplePeer({
             initiator: data.initiator,
@@ -44,7 +48,7 @@
           newPeer.on('connect', () => {
             setIsConnected(true);
             setIsFinding(false);
-            setMessages([...messages, { type: 'system', content: 'Connected to stranger!' }]);
+            setMessages((prev) => [...prev, { type: 'system', content: 'Connected to stranger!' }]);
           });
 
           newPeer.on('data', (data) => {
@@ -54,14 +58,10 @@
 
           newPeer.on('error', (err) => {
             console.error('Peer error:', err);
-            setMessages([...messages, { type: 'system', content: 'Connection lost. Try finding a new stranger.' }]);
+            setMessages((prev) => [...prev, { type: 'system', content: 'Connection lost. Try finding a new stranger.' }]);
             setIsConnected(false);
             setPeer(null);
-        });
-
-        socket.on('onlineUsers', (count) => {
-          setOnlineUsers(count);
-        });
+          });
 
           setPeer(newPeer);
         });
@@ -76,7 +76,7 @@
           socket.disconnect();
           if (peer) peer.destroy();
         };
-      }, [peer, messages]);
+      }, [peer]);
 
       React.useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
