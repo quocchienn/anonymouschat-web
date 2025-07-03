@@ -17,13 +17,13 @@
     function App() {
       const [messages, setMessages] = React.useState([]);
       const [input, setInput] = React.useState('');
-      const [peer, setPeer] = React.useState(null);
       const [isConnected, setIsConnected] = React.useState(false);
       const [isFinding, setIsFinding] = React.useState(false);
       const [onlineUsers, setOnlineUsers] = React.useState(0);
       const fileInputRef = React.useRef(null);
       const messagesEndRef = React.useRef(null);
 
+      const peerRef = React.useRef(null); // Thêm dòng này
       const socket = React.useMemo(() => io('https://anonymouschat-server.onrender.com'), []);
 
       React.useEffect(() => {
@@ -60,23 +60,23 @@
             console.error('Peer error:', err);
             setMessages((prev) => [...prev, { type: 'system', content: 'Connection lost. Try finding a new stranger.' }]);
             setIsConnected(false);
-            setPeer(null);
+            peerRef.current = null;
           });
 
-          setPeer(newPeer);
+          peerRef.current = newPeer; // Lưu peer vào ref
         });
 
         socket.on('signal', (data) => {
-          if (peer) {
-            peer.signal(data.signal);
+          if (peerRef.current) {
+            peerRef.current.signal(data.signal);
           }
         });
 
         return () => {
           socket.disconnect();
-          if (peer) peer.destroy();
+          if (peerRef.current) peerRef.current.destroy();
         };
-      }, [peer]);
+      }, []);
 
       React.useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,22 +84,27 @@
 
       const findStranger = () => {
         setIsFinding(true);
+        setIsConnected(false);
         setMessages([]);
+        if (peerRef.current) {
+          peerRef.current.destroy();
+          peerRef.current = null;
+        }
         socket.emit('find-stranger');
       };
 
       const sendMessage = () => {
-        if (input.trim() && peer && isConnected) {
+        if (input.trim() && peerRef.current && isConnected) {
           const message = { type: 'text', content: input, from: 'you' };
-          peer.send(JSON.stringify(message));
-          setMessages([...messages, message]);
+          peerRef.current.send(JSON.stringify(message));
+          setMessages((prev) => [...prev, message]);
           setInput('');
         }
       };
 
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
-        if (file && peer && isConnected) {
+        if (file && peerRef.current && isConnected) {
           const reader = new FileReader();
           reader.onload = () => {
             const message = {
@@ -107,8 +112,8 @@
               content: reader.result,
               from: 'you',
             };
-            peer.send(JSON.stringify(message));
-            setMessages([...messages, message]);
+            peerRef.current.send(JSON.stringify(message));
+            setMessages((prev) => [...prev, message]);
           };
           reader.readAsDataURL(file);
         }
