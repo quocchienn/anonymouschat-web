@@ -14,6 +14,11 @@
 <body>
   <div id="root"></div>
   <script type="text/babel">
+    function getAvatar(seed) {
+      // Sử dụng avatar ngẫu nhiên dựa trên seed (ví dụ: https://api.dicebear.com)
+      return `https://api.dicebear.com/7.x/bottts-neutral/svg?seed=${seed}`;
+    }
+
     function App() {
       const [messages, setMessages] = React.useState([]);
       const [input, setInput] = React.useState('');
@@ -23,8 +28,10 @@
       const fileInputRef = React.useRef(null);
       const messagesEndRef = React.useRef(null);
 
-      const peerRef = React.useRef(null); // Thêm dòng này
+      const peerRef = React.useRef(null);
       const socket = React.useMemo(() => io('https://anonymouschat-server.onrender.com'), []);
+      const [myAvatar] = React.useState(() => Math.random().toString(36).substring(2, 10));
+      const [strangerAvatar, setStrangerAvatar] = React.useState('');
 
       React.useEffect(() => {
         socket.on('connect', () => {
@@ -36,6 +43,7 @@
         });
 
         socket.on('matched', (data) => {
+          setStrangerAvatar(Math.random().toString(36).substring(2, 10));
           const newPeer = new SimplePeer({
             initiator: data.initiator,
             trickle: false,
@@ -48,7 +56,10 @@
           newPeer.on('connect', () => {
             setIsConnected(true);
             setIsFinding(false);
-            setMessages((prev) => [...prev, { type: 'system', content: 'Connected to stranger!' }]);
+            setMessages((prev) => [
+              ...prev,
+              { type: 'system', content: 'Đã kết nối với người lạ!' },
+            ]);
           });
 
           newPeer.on('data', (data) => {
@@ -58,12 +69,15 @@
 
           newPeer.on('error', (err) => {
             console.error('Peer error:', err);
-            setMessages((prev) => [...prev, { type: 'system', content: 'Connection lost. Try finding a new stranger.' }]);
+            setMessages((prev) => [
+              ...prev,
+              { type: 'system', content: 'Mất kết nối. Hãy tìm người lạ mới.' },
+            ]);
             setIsConnected(false);
             peerRef.current = null;
           });
 
-          peerRef.current = newPeer; // Lưu peer vào ref
+          peerRef.current = newPeer;
         });
 
         socket.on('signal', (data) => {
@@ -90,6 +104,7 @@
           peerRef.current.destroy();
           peerRef.current = null;
         }
+        setStrangerAvatar('');
         socket.emit('find-stranger');
       };
 
@@ -124,42 +139,57 @@
       };
 
       return (
-        <div className="flex flex-col h-screen bg-gray-100">
-          <div className="bg-blue-600 text-white p-4 text-center">
-            <h1 className="text-2xl font-bold">Chat ẩn danh</h1>
-            <p>Trò chuyện với người lạ ngẫu nhiên. Không có tài khoản, không có nhật ký.</p>
-            <p className="mt-2">Users online: {onlineUsers}</p>
+        <div className="flex flex-col h-[100dvh] bg-gradient-to-br from-blue-100 to-purple-100">
+          <div className="bg-blue-700 text-white p-4 text-center shadow">
+            <h1 className="text-2xl md:text-3xl font-bold mb-1">💬 Chat Ẩn Danh</h1>
+            <p className="text-xs md:text-base">Trò chuyện với người lạ ngẫu nhiên. Không tài khoản, không lưu trữ.</p>
+            <p className="mt-2 text-xs md:text-sm">🟢 Đang online: <span className="font-bold">{onlineUsers}</span></p>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-2 md:p-4 w-full max-w-md mx-auto">
             {messages.map((msg, index) => (
               <div
                 key={index}
-                className={`mb-2 p-2 rounded-lg ${
-                  msg.from === 'you' ? 'bg-blue-200 ml-auto' : msg.from === 'stranger' ? 'bg-gray-200' : 'bg-yellow-200 text-center'
-                } max-w-md`}
+                className={`flex items-end mb-2 md:mb-3 ${msg.from === 'you' ? 'justify-end' : msg.from === 'stranger' ? 'justify-start' : 'justify-center'}`}
               >
-                {msg.type === 'text' && <p>{msg.content}</p>}
-                {msg.type === 'image' && <img src={msg.content} alt="Shared" className="max-w-full h-auto" />}
-                {msg.type === 'video' && (
-                  <video controls className="max-w-full h-auto">
-                    <source src={msg.content} />
-                  </video>
+                {msg.from === 'stranger' && (
+                  <img src={getAvatar(strangerAvatar)} alt="Stranger" className="w-7 h-7 md:w-8 md:h-8 rounded-full mr-2 border shadow" />
+                )}
+                <div
+                  className={`p-2 md:p-3 rounded-2xl shadow max-w-[75vw] md:max-w-xs break-words ${
+                    msg.from === 'you'
+                      ? 'bg-blue-500 text-white rounded-br-none'
+                      : msg.from === 'stranger'
+                      ? 'bg-white text-gray-900 rounded-bl-none'
+                      : 'bg-yellow-200 text-gray-700 text-center w-full'
+                  }`}
+                >
+                  {msg.type === 'text' && <span>{msg.content}</span>}
+                  {msg.type === 'image' && <img src={msg.content} alt="Shared" className="max-w-full h-auto rounded" />}
+                  {msg.type === 'video' && (
+                    <video controls className="max-w-full h-auto rounded">
+                      <source src={msg.content} />
+                    </video>
+                  )}
+                  {msg.type === 'system' && <span className="italic">{msg.content}</span>}
+                </div>
+                {msg.from === 'you' && (
+                  <img src={getAvatar(myAvatar)} alt="You" className="w-7 h-7 md:w-8 md:h-8 rounded-full ml-2 border shadow" />
                 )}
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
-          <div className="p-4 bg-white border-t">
+          <div className="p-2 md:p-4 bg-white border-t shadow-lg w-full max-w-md mx-auto">
             {!isConnected && !isFinding && (
               <button
                 onClick={findStranger}
-                className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white p-3 rounded-xl font-semibold text-lg shadow hover:from-blue-600 hover:to-purple-600 transition"
               >
-                Tìm một người lạ
+                Tìm một người lạ 👤
               </button>
             )}
             {isFinding && (
-              <p className="text-center text-gray-600">Tìm một người lạ...</p>
+              <p className="text-center text-gray-600 animate-pulse">Đang tìm người lạ...</p>
             )}
             {isConnected && (
               <div className="flex space-x-2">
@@ -168,14 +198,14 @@
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  className="flex-1 p-2 border rounded"
-                  placeholder="Type a message..."
+                  className="flex-1 p-3 border rounded-xl shadow focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+                  placeholder="Nhập tin nhắn..."
                 />
                 <button
                   onClick={sendMessage}
-                  className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-xl shadow hover:bg-blue-700 transition text-sm md:text-base"
                 >
-                  Send
+                  Gửi
                 </button>
                 <input
                   type="file"
@@ -186,9 +216,10 @@
                 />
                 <button
                   onClick={() => fileInputRef.current.click()}
-                  className="bg-gray-600 text-white p-2 rounded hover:bg-gray-700"
+                  className="bg-gray-600 text-white px-3 md:px-4 py-2 rounded-xl shadow hover:bg-gray-700 transition text-lg"
+                  title="Gửi ảnh hoặc video"
                 >
-                  Upload
+                  📎
                 </button>
               </div>
             )}
